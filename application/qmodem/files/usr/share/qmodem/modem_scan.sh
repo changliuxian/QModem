@@ -530,10 +530,35 @@ EOF
     for mode in $modes; do
         uci -q add_list qmodem.$section_name.modes=$mode
     done
+
+    # 针对 Compal RXM-G1 的特殊处理：内核驱动已支持，直接关联 USB AT 端口
+    if [ "$modem_name" == "rxm-g1" ]; then
+        # 优先使用 ttyUSB1，其次 ttyUSB0，作为 MHI 端口不通时的备选
+        usb_at_ports=""
+        [ -c "/dev/ttyUSB1" ] && usb_at_ports="ttyUSB1"
+        [ -c "/dev/ttyUSB0" ] && usb_at_ports="$usb_at_ports ttyUSB0"
+        [ -c "/dev/mhi_DUN" ] && usb_at_ports="$usb_at_ports mhi_DUN"
+
+        if [ -n "$usb_at_ports" ]; then
+            valid_at_ports="$usb_at_ports $valid_at_ports"
+            # 去重并保留顺序
+            valid_at_ports=$(echo $valid_at_ports | tr ' ' '\n' | awk '!a[$0]++' | tr '\n' ' ')
+            m_debug "associated USB AT ports ($usb_at_ports) for rxm-g1"
+            
+            # 同时更新 at_ports 以确保出现在 ports 列表中
+            at_ports="$usb_at_ports $at_ports"
+            at_ports=$(echo $at_ports | tr ' ' '\n' | awk '!a[$0]++' | tr '\n' ' ')
+        fi
+    fi
+
     for at_port in $valid_at_ports; do
         uci -q add_list qmodem.$section_name.valid_at_ports="/dev/$at_port"
-        uci -q set qmodem.$section_name.at_port="/dev/$at_port"
     done
+    
+    # 保存首选 AT 端口
+    first_port=$(echo $valid_at_ports | awk '{print $1}')
+    [ -n "$first_port" ] && uci -q set qmodem.$section_name.at_port="/dev/$first_port"
+
     for at_port in $at_ports; do
         uci -q add_list qmodem.$section_name.ports="/dev/$at_port"
     done

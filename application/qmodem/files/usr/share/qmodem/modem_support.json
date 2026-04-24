@@ -1279,7 +1279,7 @@
         },
         "pcie": {
             "rxm-g1": {
-                "id": "17cb:0306",
+                "id": "05c6:901f",
                 "manufacturer": "compal",
                 "platform": "qualcomm",
                 "data_interface": "pcie",
