@@ -135,6 +135,7 @@ update_config()
     config_get network_bridge $modem_config network_bridge
     config_get metric $modem_config metric
     config_get at_port $modem_config at_port
+    config_get network_devices $modem_config network
     config_get manufacturer $modem_config manufacturer
     config_get platform $modem_config platform
     config_get use_ubus $modem_config use_ubus
@@ -157,6 +158,7 @@ update_config()
     modem_slot=$(basename $modem_path)
     config_get alias $modem_config alias
     driver=$(get_driver)
+    [ -z "$driver" ] && driver="unknown"
     update_sim_slot
     case $sim_slot in
         1)
@@ -186,8 +188,12 @@ update_config()
             config_get pincode $modem_config pincode
             ;;
     esac
-    modem_net=$(find $modem_path -name net |tail -1)
-    modem_netcard=$(ls $modem_net)
+    if [ -n "$network_devices" ]; then
+        modem_netcard=$(echo "$network_devices" | awk '{print $1}')
+    else
+        modem_net=$(find $modem_path -name net 2>/dev/null | tail -1)
+        modem_netcard=$(ls "$modem_net" 2>/dev/null)
+    fi
     interface_name=$modem_config
     [ -n "$alias" ] && interface_name=$alias
     interface6_name=${interface_name}v6
@@ -241,13 +247,21 @@ check_dial_prepare()
 
     if [ "$enable_dial" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$state" != "disabled" ] ;then
         config_fullfill=1
-    fi
-    if [ "$config_fullfill" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$netdev_fullfill" = "1" ] ;then
-        at "$at_port" "AT+CFUN=1"
-        return 1
     else
-        return 0
+        config_fullfill=0
     fi
+
+    if [ "$config_fullfill" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$netdev_fullfill" = "1" ] ;then
+        if [ "$manufacturer" = "compal" ]; then
+            check_cfun
+            if [ $? -ne 0 ]; then
+                m_debug "CFUN is not 1, try to set it to 1"
+                return 0
+            fi
+        fi
+        return 1
+    fi
+    return 0
 }
 
 check_ip()
