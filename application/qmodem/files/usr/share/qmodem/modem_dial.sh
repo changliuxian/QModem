@@ -524,11 +524,16 @@ set_if()
     if [ -n "$ethernet_check" ] && [ -n "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ];then
         set_modem_netcard=$ethernet_5g
     fi
+    if echo "$set_modem_netcard" | grep -q "^rmnet"; then
+        qmap_if="${set_modem_netcard}.1"
+        if [ -d "/sys/class/net/$qmap_if" ]; then
+            set_modem_netcard="$qmap_if"
+        fi
+    fi
     #set led
     set_led "net" $modem_config $set_modem_netcard
     if echo "$set_modem_netcard" | grep -q "^rmnet"; then
-        qmap_if="${set_modem_netcard}.1"
-        append_device_to_fw_zone $num "$qmap_if"
+        append_device_to_fw_zone $num "$set_modem_netcard"
         [ $? -eq 0 ] && firewall_reload_flag=1
     fi
     origin_netcard=$(uci -q get network.$interface_name.ifname)
