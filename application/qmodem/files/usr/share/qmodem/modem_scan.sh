@@ -442,12 +442,12 @@ add()
     case $slot_type in
         "usb")
             scan_usb_slot_interfaces $slot
-            modem_path="/sys/bus/usb/devices/$slot/"
+            modem_path="/sys/bus/usb/devices/$slot"
             ;;
         "pcie")
             #under test
             scan_pcie_slot_interfaces $slot
-            modem_path="/sys/bus/pci/devices/$slot/"
+            modem_path="/sys/bus/pci/devices/$slot"
             ;;
     esac
     #if no netdev return
@@ -463,8 +463,13 @@ add()
     done
     if [ -z "$modem_name" ];then
         m_debug "modem $modem_name not found, try to get modem model by id"
-        product_id=$(cat $modem_path/idProduct)
-        vendor_id=$(cat $modem_path/idVendor)
+        if [ "$slot_type" == "usb" ]; then
+            vendor_id=$(cat $modem_path/idVendor)
+            product_id=$(cat $modem_path/idProduct)
+        else
+            vendor_id=$(cat $modem_path/vendor | cut -d 'x' -f 2)
+            product_id=$(cat $modem_path/device | cut -d 'x' -f 2)
+        fi
         id="$vendor_id:$product_id"
         get_model_name_by_id $id
     fi
@@ -623,7 +628,10 @@ case $action in
         ;;
     "scan")
         debug_subject="modem_scan_scan"
-        [ -n "$config" ] && delay=$config && sleep $delay
+        case "$config" in
+            [0-9]*) delay=$config && sleep $delay ;;
+            "pcie"|"usb") slot_type=$config ;;
+        esac
         lock -n /tmp/lock/modem_scan 
         [ $? -eq 1 ] && exit 0
         scan $slot_type

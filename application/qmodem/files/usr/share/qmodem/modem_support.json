@@ -101,7 +101,7 @@
                 ]
             },
             "em160r-gl": {
-                "manufacturer_id": "2c7c",
+                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",
                 "platform": "lte12",
                 "data_interface": "usb",
@@ -1279,7 +1279,7 @@
         },
         "pcie": {
             "rxm-g1": {
-                "id": "05c6:901f",
+                "id": "17cb:0306",
                 "manufacturer": "compal",
                 "platform": "qualcomm",
                 "data_interface": "pcie",
