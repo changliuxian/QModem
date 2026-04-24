@@ -348,6 +348,22 @@ append_to_fw_zone()
     fi
 }
 
+append_device_to_fw_zone()
+{
+    local fw_zone=$1
+    local dev_name=$2
+    [ -z "$dev_name" ] && return 1
+    [ ! -d "/sys/class/net/$dev_name" ] && return 1
+    source /etc/os-release
+    local os_version=${VERSION_ID:0:2}
+    [ "$os_version" -le 21 ] && return 1
+    local exists
+    exists=$(uci -q get firewall.@zone[${fw_zone}].device 2>/dev/null | tr ' ' '\n' | grep -x "$dev_name" || true)
+    [ -n "$exists" ] && return 0
+    uci add_list firewall.@zone[${fw_zone}].device="$dev_name"
+    return 0
+}
+
 set_if()
 {
     fw_reload_flag=0
@@ -510,6 +526,11 @@ set_if()
     fi
     #set led
     set_led "net" $modem_config $set_modem_netcard
+    if echo "$set_modem_netcard" | grep -q "^rmnet"; then
+        qmap_if="${set_modem_netcard}.1"
+        append_device_to_fw_zone $num "$qmap_if"
+        [ $? -eq 0 ] && firewall_reload_flag=1
+    fi
     origin_netcard=$(uci -q get network.$interface_name.ifname)
     origin_device=$(uci -q get network.$interface_name.device)
     origin_metric=$(uci -q get network.$interface_name.metric)
