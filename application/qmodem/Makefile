@@ -11,7 +11,6 @@ PKG_VERSION:=$(QMODEM_VERSION)
 include $(INCLUDE_DIR)/package.mk
 
 define Package/$(PKG_NAME)
-  PKGARCH:=all
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=QModem scripts
@@ -25,6 +24,7 @@ define Package/$(PKG_NAME)
 		+kmod-usb-net-rndis \
 		+kmod-usb-net-cdc-ncm +kmod-usb-net-huawei-cdc-ncm \
   		+ubus-at-daemon +tom_modem +terminfo +sms-tool_q \
+		+modem_scan \
 		+jq +bc\
 		+coreutils +coreutils-stat \
 		+usbutils \
