@@ -628,6 +628,24 @@ static void scan_associated_usb(const char *pcie_slot, struct scan_result *res)
 	}
 }
 
+static void scan_usb_tty_ports(struct scan_result *res)
+{
+	DIR *d;
+	struct dirent *de;
+	// Scan /dev for ttyUSB* devices
+	d = opendir("/dev");
+	if (d) {
+		while ((de = readdir(d))) {
+			if (!strncmp(de->d_name, "ttyUSB", 6)) {
+				char dev_path[64];
+				snprintf(dev_path, sizeof(dev_path), "/dev/%s", de->d_name);
+				sl_add(&res->at_ports, dev_path);
+			}
+		}
+		closedir(d);
+	}
+}
+
 static void scan_pcie_slot(const char *slot, struct scan_result *res)
 {
 	char slot_path[256], path[512], short_slot[128];
@@ -880,6 +898,7 @@ static void normalize_model_name(char *name, size_t len)
 	else if (strstr(lower, "rg200u-cn")) snprintf(name, len, "rg200u-cn");
 	else if (strstr(lower, "nu313-m2")) snprintf(name, len, "srm821");
 	else if (strstr(lower, "m601")) snprintf(name, len, "n510m");
+	else if (strstr(lower, "rxm-g1") || strstr(lower, "rxmg1") || !strcmp(lower, "334")) snprintf(name, len, "rxm-g1");
 	else snprintf(name, len, "%s", lower);
 }
 
@@ -1043,6 +1062,18 @@ static int add_modem(const char *slot, const char *slot_type)
 	} else if (!strcmp(slot_type, "pcie")) {
 		scan_pcie_slot(slot, &res);
 		scan_associated_usb(slot, &res);
+		// Check if this is Compal RXM-G1 (17cb:0306) and scan USB tty ports
+		char slot_path[256], vid_path[256], pid_path[256], vid[16], pid[16];
+		snprintf(slot_path, sizeof(slot_path), "/sys/bus/pci/devices/%s", slot);
+		snprintf(vid_path, sizeof(vid_path), "%s/vendor", slot_path);
+		snprintf(pid_path, sizeof(pid_path), "%s/device", slot_path);
+		if (read_file_trim(vid_path, vid, sizeof(vid)) == 0 && read_file_trim(pid_path, pid, sizeof(pid)) == 0) {
+			// The values are like 0x17cb and 0x0306, we need to compare
+			if (!strcmp(vid, "0x17cb") && !strcmp(pid, "0x0306")) {
+				log_msg(LOG_L_INFO, "Detected Compal RXM-G1 PCIe device, scanning USB tty ports");
+				scan_usb_tty_ports(&res);
+			}
+		}
 	} else {
 		goto out_fail;
 	}
@@ -1059,6 +1090,46 @@ static int add_modem(const char *slot, const char *slot_type)
 	if (detect_profile(slot_type, &res, &profile) != 0) {
 		log_msg(LOG_L_WARN, "slot=%s type=%s modem profile not matched", slot, slot_type);
 		goto out_fail;
+	}
+
+	// Special handling for Compal RXM-G1: prioritize /dev/ttyUSB1 as AT port
+	if (!strcmp(profile.name, "rxm-g1")) {
+		log_msg(LOG_L_INFO, "Applying Compal RXM-G1 special AT port handling");
+		// Reorder valid_at_ports to prioritize /dev/ttyUSB1 first, then /dev/ttyUSB0, then others
+		struct str_list new_valid;
+		sl_init(&new_valid);
+		// First check for /dev/ttyUSB1
+		for (size_t i = 0; i < res.valid_at_ports.len; i++) {
+			if (!strcmp(res.valid_at_ports.items[i], "/dev/ttyUSB1")) {
+				sl_add(&new_valid, res.valid_at_ports.items[i]);
+			}
+		}
+		// Then /dev/ttyUSB0
+		for (size_t i = 0; i < res.valid_at_ports.len; i++) {
+			if (!strcmp(res.valid_at_ports.items[i], "/dev/ttyUSB0")) {
+				sl_add(&new_valid, res.valid_at_ports.items[i]);
+			}
+		}
+		// Then add all others
+		for (size_t i = 0; i < res.valid_at_ports.len; i++) {
+			if (strcmp(res.valid_at_ports.items[i], "/dev/ttyUSB1") && strcmp(res.valid_at_ports.items[i], "/dev/ttyUSB0")) {
+				sl_add(&new_valid, res.valid_at_ports.items[i]);
+			}
+		}
+		// Replace valid_at_ports with new_valid
+		if (new_valid.len > 0) {
+			sl_free(&res.valid_at_ports);
+			sl_init(&res.valid_at_ports);
+			for (size_t i = 0; i < new_valid.len; i++) {
+				sl_add(&res.valid_at_ports, new_valid.items[i]);
+			}
+			// Update preferred_at
+			if (res.valid_at_ports.len > 0) {
+				snprintf(res.preferred_at, sizeof(res.preferred_at), "%s", res.valid_at_ports.items[0]);
+				log_msg(LOG_L_INFO, "Set Compal RXM-G1 preferred AT port: %s", res.preferred_at);
+			}
+		}
+		sl_free(&new_valid);
 	}
 
 	join_list(&res.net_devices, net_join, sizeof(net_join));
