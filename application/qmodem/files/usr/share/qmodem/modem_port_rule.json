@@ -1,6 +1,10 @@
 {
     "modem_port_rule": {
         "usb": {
+            "05c6:901f": {
+                "name": "rxm-g1",
+                "option_driver": 1
+            },
             "305a:1421": {
                 "name": "gm800",
                 "mode": "qmi",
