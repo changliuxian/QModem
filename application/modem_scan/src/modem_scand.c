@@ -1084,16 +1084,37 @@ static int add_modem(const char *slot, const char *slot_type)
 		goto out_fail;
 	}
 
+	// Special handling for Compal RXM-G1: even if no net device yet, try to detect via USB AT
+	int is_rxm_g1 = 0;
 	if (!res.net_devices.len) {
+		// Try to detect if it's rxm-g1 even without net device
+		log_msg(LOG_L_INFO, "No net device yet, trying to detect via USB AT ports");
+		validate_ports(&res);
+		if (res.valid_at_ports.len && detect_profile(slot_type, &res, &profile) == 0) {
+			if (!strcmp(profile.name, "rxm-g1")) {
+				log_msg(LOG_L_INFO, "Detected Compal RXM-G1 via USB AT, will try to initialize");
+				is_rxm_g1 = 1;
+			}
+		}
+	}
+
+	// Normal check for other modules or if we already detected rxm-g1
+	if (!is_rxm_g1 && !res.net_devices.len) {
 		log_msg(LOG_L_INFO, "slot=%s type=%s has no net device yet", slot, slot_type);
 		goto out_fail;
 	}
-	validate_ports(&res);
+
+	// Validate ports if not done already
 	if (!res.valid_at_ports.len) {
-		log_msg(LOG_L_INFO, "slot=%s type=%s has no valid AT port yet ports=%zu", slot, slot_type, res.at_ports.len);
-		goto out_fail;
+		validate_ports(&res);
+		if (!res.valid_at_ports.len) {
+			log_msg(LOG_L_INFO, "slot=%s type=%s has no valid AT port yet ports=%zu", slot, slot_type, res.at_ports.len);
+			goto out_fail;
+		}
 	}
-	if (detect_profile(slot_type, &res, &profile) != 0) {
+
+	// Detect profile if not done already
+	if (!is_rxm_g1 && detect_profile(slot_type, &res, &profile) != 0) {
 		log_msg(LOG_L_WARN, "slot=%s type=%s modem profile not matched", slot, slot_type);
 		goto out_fail;
 	}
