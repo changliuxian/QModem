@@ -192,6 +192,9 @@ case $method in
     "get_current_band")
         get_current_band
         ;;
+    "get_current_band_capabilities")
+        get_current_band_capabilities
+        ;;
     "get_disabled_features")
         json_add_array disabled_features
         vendor_get_disabled_features
