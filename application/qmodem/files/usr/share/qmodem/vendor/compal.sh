@@ -9,7 +9,7 @@ debug_subject="compal_ctrl"
 #return raw data
 name=$(uci -q get qmodem.$config_section.name)
 case "$name" in
-    "t99w640")
+    "t99w640"|"rxm-g1")
         at_pre="AT+"
     ;;
     *)
@@ -594,7 +594,7 @@ cell_info(){
         add_plain_info_entry "TX Power" "$lte_tx_power" "TX Power"
         #add_plain_info_entry "Srxlev" "$lte_srxlev" "Serving Cell Receive Level"
         ;;
-    "NR5G_SA")
+    "NR5G_SA"|"NR5G_NSA")
         has_ca=$(echo "$response" | grep -c "nr_scc1:")
         nr_display_mode="$network_mode"
         
@@ -618,7 +618,7 @@ cell_info(){
         nr_tx_power=$(echo "$response"|awk -F'nr_tx_pwr:' '{print $2}'|xargs)
 
         if [ "$has_ca" -gt 0 ]; then
-            nr_display_mode="NR5G_SA-CA"
+            nr_display_mode="$network_mode-CA"
 
             scc1_band=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
             scc1_band_width=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band_width:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
