@@ -52,35 +52,16 @@ function set_imei(){
 }
 
 function get_mode(){
-    local mode_num
     local mode
-    cfg=$(at $at_port $at_pre"PCIEMODE?")
-    config_type=`echo -e "$cfg" | grep -o '[0-9]'`
-    if [ "$config_type" = "1" ]; then
-        mode_num="0"
-    json_add_int disable_mode_btn 1
-
+    # 对于 rxm-g1，我们检测接口类型来判断模式
+    if ls /sys/class/net/ | grep -q "rmnet_mhi"; then
+        mode="rmnet"
     else
-          ucfg=$(at $at_port $at_pre"USBSWITCH?")
-          config_type=$(echo "$ucfg" | grep USBSWITCH: |cut -d':' -f2|xargs)
-          if [ "$config_type" = "9025" ]; then
-             mode_num="1"
-          elif [ "$config_type" = "90D5" ]; then
-             mode_num="0"
-        fi
+        mode="mbim"
     fi
-    case "$platform" in
-        "qualcomm")
-            case "$mode_num" in
-                "0") mode="mbim" ;;
-                "1") mode="rmnet" ;;
-                *) mode="${mode_num}" ;;
-            esac
-        ;;
-        *)
-            mode="${mode_num}"
-        ;;
-    esac
+    # 禁用模式切换按钮
+    json_add_int disable_mode_btn 1
+    
     available_modes=$(uci -q get qmodem.$config_section.modes)
     json_add_object "mode"
     for available_mode in $available_modes; do
@@ -95,24 +76,9 @@ function get_mode(){
 }
 
 set_mode(){
-    local mode=$1
-    case "$platform" in
-        "qualcomm")
-            case "$mode" in
-                "mbim") mode_num="90d5" ;;
-                "rmnet") mode_num="9025" ;;
-                *) mode="90d5" ;;
-            esac
-        ;;
-        *)
-            mode_num="90d5"
-        ;;
-    esac
-    #设置模组
-    at_command=$at_pre"USBSWITCH=${mode_num}"
-    res=$(at "${at_port}" "${at_command}")
+    # rxm-g1 不需要设置模式，由驱动自动选择
     json_select "result"
-    json_add_string "set_mode" "$res"
+    json_add_string "set_mode" "Mode auto-selected by driver, no change needed"
     json_close_object
 }
 
@@ -549,99 +515,37 @@ function process_signal_value() {
     fi
 }
 
-cell_info(){
+cell_info()
+{
     class="Cell Information"
-    at_command=$at_pre"debug?"
+    at_command='AT+CESQDBM'
     response=$(at $at_port $at_command)
-    network_mode=$(echo "$response"|awk -F'RAT:' '{print $2}'|xargs)
-    #add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
-
-    case $network_mode in
-    "LTE")
-        lte_mcc=$(echo "$response"|awk -F'mcc:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        lte_mnc=$(echo "$response"|awk -F'mnc:' '{print $2}'|xargs)
-        lte_earfcn=$(echo "$response"|awk -F'channel:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_physical_cell_id=$(echo "$response"|awk -F'pci:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_cell_id=$(echo "$response"|awk -F'lte_cell_id:' '{print $2}'|xargs)
-        lte_band=$(echo "$response"|awk -F'lte_band:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_freq_band_ind=$(echo "$response"|awk -F'lte_band_width:' '{print $2}'|xargs)
-        lte_sinr=$(echo "$response"|awk -F'lte_snr:' '{print $2}'|awk '{print $1}'|xargs)
-        lte_sinr=$(process_signal_value "$lte_sinr")
-        lte_rsrq=$(echo "$response"|awk -F'rsrq:' '{print $2}'|xargs)
-        lte_rsrq=$(process_signal_value "$lte_rsrq")
-        lte_rssi=$(echo "$response"|awk -F'lte_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        lte_rssi=$(process_signal_value "$lte_rssi")
-        lte_tac=$(echo "$response"|awk -F'lte_tac:' '{print $2}'|xargs)
-        lte_tx_power=$(echo "$response"|awk -F'lte_tx_pwr:' '{print $2}'|xargs)
-
-        add_plain_info_entry "MCC" "$lte_mcc" "Mobile Country Code"
-        add_plain_info_entry "MNC" "$lte_mnc" "Mobile Network Code"
-        #add_plain_info_entry "Duplex Mode" "$lte_duplex_mode" "Duplex Mode"
-        add_plain_info_entry "Cell ID" "$lte_cell_id" "Cell ID"
-        add_plain_info_entry "Physical Cell ID" "$lte_physical_cell_id" "Physical Cell ID"
-        add_plain_info_entry "EARFCN" "$lte_earfcn" "E-UTRA Absolute Radio Frequency Channel Number"
-        add_plain_info_entry "Freq band indicator" "$lte_freq_band_ind" "Freq band indicator"
-        add_plain_info_entry "Band" "$lte_band" "Band"
-        #add_plain_info_entry "UL Bandwidth" "$lte_ul_bandwidth" "UL Bandwidth"
-        #add_plain_info_entry "DL Bandwidth" "$lte_dl_bandwidth" "DL Bandwidth"
-        add_plain_info_entry "TAC" "$lte_tac" "Tracking area code of cell served by neighbor Enb"
-        add_bar_info_entry "RSRQ" "$lte_rsrq" "Reference Signal Received Quality" -19.5 -3 dB
-        add_bar_info_entry "RSSI" "$lte_rssi" "Received Signal Strength Indicator" -120 -20 dBm
-        add_bar_info_entry "SINR" "$lte_sinr" "Signal to Interference plus Noise Ratio Bandwidth" 0 30 dB
-        #add_plain_info_entry "RxLev" "$lte_rxlev" "Received Signal Level"
-        add_plain_info_entry "RSSNR" "$lte_rssnr" "Radio Signal Strength Noise Ratio"
-        #add_plain_info_entry "CQI" "$lte_cql" "Channel Quality Indicator"
-        add_plain_info_entry "TX Power" "$lte_tx_power" "TX Power"
-        #add_plain_info_entry "Srxlev" "$lte_srxlev" "Serving Cell Receive Level"
-        ;;
-    "NR5G_SA"|"NR5G_NSA")
-        has_ca=$(echo "$response" | grep -c "nr_scc1:")
-        nr_display_mode="$network_mode"
-        
-        nr_mcc=$(echo "$response"|awk -F'mcc:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        nr_mnc=$(echo "$response"|awk -F'mnc:' '{print $2}'|xargs)
-        nr_earfcn=$(echo "$response"|awk -F'channel:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_physical_cell_id=$(echo "$response"|awk -F'pci:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_cell_id=$(echo "$response"|awk -F'nr_cell_id:' '{print $2}'|xargs)
-        nr_band=$(echo "$response"|awk -F'nr_band:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_band_width=$(echo "$response"|awk -F'nr_band_width:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_freq_band_ind=$(echo "$response"|awk -F'lte_band_width:' '{print $2}'|xargs)
-        nr_sinr=$(echo "$response"|awk -F'nr_snr:' '{print $2}'|awk '{print $1}'|xargs)
-        nr_sinr=$(process_signal_value "$nr_sinr")
-        nr_rsrq=$(echo "$response"|awk -F'rsrq:' '{print $2}'|xargs)
-        nr_rsrq=$(process_signal_value "$nr_rsrq")
-        nr_rsrp=$(echo "$response"|awk -F'rsrp:' '{print $2}'|awk '{print $1}'|xargs)
-        nr_rsrp=$(process_signal_value "$nr_rsrp")
-        nr_rssi=$(echo "$response"|awk -F'nr_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        nr_rssi=$(process_signal_value "$nr_rssi")
-        nr_tac=$(echo "$response"|awk -F'nr_tac:' '{print $2}'|xargs)
-        nr_tx_power=$(echo "$response"|awk -F'nr_tx_pwr:' '{print $2}'|xargs)
-
-        if [ "$has_ca" -gt 0 ]; then
-            nr_display_mode="$network_mode-CA"
-
-            scc1_band=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
-            scc1_band_width=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band_width:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
-
-            nr_band="$nr_band $scc1_band"
-            nr_band_width="$nr_band_width $scc1_band_width"
-        fi
-
-        add_plain_info_entry "Network Mode" "$nr_display_mode" "Network Mode"
+    
+    # 提取网络类型
+    network_mode=$(echo "$response" | grep "SYSTEM:" | awk -F':' '{print $2}' | xargs)
+    
+    # 提取频段
+    nr_band=$(echo "$response" | grep "Band " | awk -F'Band ' '{print $2}' | xargs)
+    
+    # 提取信号参数
+    nr_rsrq=$(echo "$response" | grep -o "RSRQ [-0-9]*" | awk '{print $2}')
+    nr_rsrp=$(echo "$response" | grep -o "RSRP [-0-9]*" | awk '{print $2}')
+    nr_sinr=$(echo "$response" | grep -o "SINR [-0-9]*" | awk '{print $2}')
+    
+    # 显示信息
+    if [ -n "$network_mode" ]; then
+        add_plain_info_entry "Network Mode" "$network_mode" "Network Mode"
+    fi
+    if [ -n "$nr_band" ]; then
         add_plain_info_entry "Band" "$nr_band" "Band"
-        add_plain_info_entry "DL Bandwidth" "$nr_band_width" "DL Bandwidth"
-        add_plain_info_entry "MCC" "$nr_mcc" "Mobile Country Code"
-        add_plain_info_entry "MNC" "$nr_mnc" "Mobile Network Code"
-        #add_plain_info_entry "Duplex Mode" "$lte_duplex_mode" "Duplex Mode"
-        add_plain_info_entry "Cell ID" "$nr_cell_id" "Cell ID"
-        add_plain_info_entry "Physical Cell ID" "$nr_physical_cell_id" "Physical Cell ID"
-        add_plain_info_entry "EARFCN" "$nr_earfcn" "E-UTRA Absolute Radio Frequency Channel Number"
-        add_plain_info_entry "Freq band indicator" "$nr_freq_band_ind" "Freq band indicator"
-        add_plain_info_entry "TAC" "$nr_tac" "Tracking area code of cell served by neighbor Enb"
+    fi
+    if [ -n "$nr_rsrq" ]; then
         add_bar_info_entry "RSRQ" "$nr_rsrq" "Reference Signal Received Quality" -19.5 -3 dB
+    fi
+    if [ -n "$nr_rsrp" ]; then
         add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -140 -44 dBm
+    fi
+    if [ -n "$nr_sinr" ]; then
         add_bar_info_entry "SINR" "$nr_sinr" "Signal to Interference plus Noise Ratio Bandwidth" 0 30 dB
-        add_plain_info_entry "TX Power" "$nr_tx_power" "TX Power"
-        ;;
-    esac
+    fi
 }
