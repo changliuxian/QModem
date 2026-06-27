@@ -523,12 +523,12 @@ cell_info()
         add_plain_info_entry "Band" "$nr_band" "Band"
     fi
     if [ -n "$nr_rsrq" ]; then
-        add_plain_info_entry "RSRQ" "$nr_rsrq dB" "Reference Signal Received Quality"
+        add_bar_info_entry "RSRQ" "$nr_rsrq" "Reference Signal Received Quality" -19.5 -3 dB
     fi
     if [ -n "$nr_rsrp" ]; then
-        add_plain_info_entry "RSRP" "$nr_rsrp dBm" "Reference Signal Received Power"
+        add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -140 -44 dBm
     fi
     if [ -n "$nr_sinr" ]; then
-        add_plain_info_entry "SINR" "$nr_sinr dB" "Signal to Interference plus Noise Ratio"
+        add_bar_info_entry "SINR" "$nr_sinr" "Signal to Interference plus Noise Ratio Bandwidth" 0 30 dB
     fi
 }
