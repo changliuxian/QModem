@@ -9,7 +9,7 @@ debug_subject="compal_ctrl"
 #return raw data
 name=$(uci -q get qmodem.$config_section.name)
 case "$name" in
-    "t99w640"|"rxm-g1")
+    "rxm-g1")
         at_pre="AT+"
     ;;
     *)
@@ -274,8 +274,6 @@ function base_info(){
     add_plain_info_entry "revision" "$revision" "Revision"
     add_plain_info_entry "at_port" "$at_port" "AT Port"
     get_connect_status
-    _get_temperature
-    _get_voltage
 }
 
 function network_info() {
@@ -424,21 +422,6 @@ set_lockband()
     json_add_string "lock_band" "$lock_band"
     json_close_object
 }
-
-function _get_voltage(){
-    voltage=$(at $at_port "AT!PCVOLT?" | grep -o 'Power supply voltage: [0-9]* mV'|grep -o '[0-9]*' )
-    [ -n "$voltage" ] && {
-        add_plain_info_entry "voltage" "$voltage mV" "Voltage" 
-    }
-}
-
-function _get_temperature(){
-    temperature=$(at $at_port $at_pre"temp?" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p' )
-    [ -n "$temperature" ] && {
-        add_plain_info_entry "temperature" "$temperature C" "Temperature" 
-    }
-}
-
 function _add_avalible_band(){
     add_avalible_band_entry $1 $1
 }
@@ -540,12 +523,12 @@ cell_info()
         add_plain_info_entry "Band" "$nr_band" "Band"
     fi
     if [ -n "$nr_rsrq" ]; then
-        add_bar_info_entry "RSRQ" "$nr_rsrq" "Reference Signal Received Quality" -19.5 -3 dB
+        add_plain_info_entry "RSRQ" "$nr_rsrq dB" "Reference Signal Received Quality"
     fi
     if [ -n "$nr_rsrp" ]; then
-        add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -140 -44 dBm
+        add_plain_info_entry "RSRP" "$nr_rsrp dBm" "Reference Signal Received Power"
     fi
     if [ -n "$nr_sinr" ]; then
-        add_bar_info_entry "SINR" "$nr_sinr" "Signal to Interference plus Noise Ratio Bandwidth" 0 30 dB
+        add_plain_info_entry "SINR" "$nr_sinr dB" "Signal to Interference plus Noise Ratio"
     fi
 }
