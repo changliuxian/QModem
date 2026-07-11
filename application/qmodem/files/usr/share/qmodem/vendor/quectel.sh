@@ -414,6 +414,7 @@ sim_info()
     #ICCID（集成电路卡识别码）
     at_command="AT+ICCID"
 	iccid=$(at $at_port $at_command | grep -o "+ICCID:[ ]*[-0-9A-F]\+" | cut -d " " -f 2 )
+    [ -n "$iccid" ] || iccid=$(at $at_port "AT+CCID" | grep -o "+CCID:[ ]*[-0-9A-F]\+" | cut -d " " -f 2)
     class="SIM Information"
     case "$sim_status" in
         "ready")
@@ -1231,6 +1232,7 @@ get_neighborcell(){
             get_neighborcell_lte
         ;;
     esac
+    qmodem_lockcell_boot_hook_add_json "$config_section"
     json_close_object
 }
 
@@ -1249,6 +1251,7 @@ set_neighborcell(){
     arfcn=$(echo $json_param | jq -r '.arfcn')
     band=$(echo $json_param | jq -r '.band')
     scs=$(echo $json_param | jq -r '.scs')
+    en_boot_hook=$(echo $json_param | jq -r '.en_boot_hook // empty')
     case $platform in
         "lte12"|\
         "qualcomm")
@@ -1268,6 +1271,11 @@ set_neighborcell(){
     json_add_string "arfcn" "$arfcn"
     json_add_string "band" "$band"
     json_add_string "scs" "$scs"
+    if qmodem_bool_enabled "$(uci -q get "qmodem.${config_section}.lockcell_boot_hook_enabled")"; then
+        json_add_boolean "boot_hook_enabled" 1
+    else
+        json_add_boolean "boot_hook_enabled" 0
+    fi
     json_close_object
 }
 
@@ -1278,14 +1286,17 @@ lockcell_qualcomm(){
         res1=$(at $at_port $unlocknr)
         res2=$(at $at_port $unlock4g)
         res=$res1,$res2
+        qmodem_lockcell_boot_hook_clear "$config_section"
     else
         lock4g="AT+QNWLOCK=\"common/4g\",1,$arfcn,$pci"
         locknr="AT+QNWLOCK=\"common/5g\",$pci,$arfcn,$(get_scs $scs),$band"
         if [ $rat = "1" ]; then
-            res=$(at $at_port $locknr)
+            lockcell_boot_cmd="$locknr"
         else
-            res=$(at $at_port $lock4g)
+            lockcell_boot_cmd="$lock4g"
         fi
+        res=$(at $at_port "$lockcell_boot_cmd")
+        qmodem_lockcell_boot_hook_sync "$config_section" "$en_boot_hook" "$lockcell_boot_cmd"
     fi
    
 }
@@ -1297,14 +1308,17 @@ lockcell_unisoc(){
         res1=$(at $at_port $unlocknr)
         res2=$(at $at_port $unlock4g)
         res=$res1,$res2
+        qmodem_lockcell_boot_hook_clear "$config_section"
     else
         lock4g="AT+QNWLOCK=\"common/lte\",1,$arfcn,$pci"
         locknr="AT+QNWLOCK=\"common/5g\",1,$arfcn,$pci"
         if [ $rat = "1" ]; then
-            res=$(at $at_port $locknr)
+            lockcell_boot_cmd="$locknr"
         else
-            res=$(at $at_port $lock4g)
+            lockcell_boot_cmd="$lock4g"
         fi
+        res=$(at $at_port "$lockcell_boot_cmd")
+        qmodem_lockcell_boot_hook_sync "$config_section" "$en_boot_hook" "$lockcell_boot_cmd"
     fi
 }
 
@@ -1313,13 +1327,15 @@ lockcell_lte(){
         unlocklte="AT+QNWLOCK=\"common/lte\",0"
         res1=$(at $at_port $unlocklte)
         res=$res1
+        qmodem_lockcell_boot_hook_clear "$config_section"
     else
         if [ -z $pci ] && [ -n $arfcn ]; then
             locklte="AT+QNWLOCK=\"common/lte\",1,$arfcn,0"
         elif [ -n $pci ] && [ -n $arfcn ]; then
             locklte="AT+QNWLOCK=\"common/lte\",2,$arfcn,$pci"
         fi
-        res=$(at $at_port $locklte)
+        res=$(at $at_port "$locklte")
+        qmodem_lockcell_boot_hook_sync "$config_section" "$en_boot_hook" "$locklte"
     fi
 }
 
@@ -1512,7 +1528,7 @@ cell_info()
         endc_lte_physical_cell_id=$(echo "$lte" | awk -F',' '{print $6}')
         endc_lte_earfcn=$(echo "$lte" | awk -F',' '{print $7}')
         endc_lte_freq_band_ind_num=$(echo "$lte" | awk -F',' '{print $8}')
-        endc_lte_freq_band_ind=$(get_band "LTE" $endc_lte_freq_band_ind_num)
+        endc_lte_band=$(get_band "LTE" $endc_lte_freq_band_ind_num)
         ul_bandwidth_num=$(echo "$lte" | awk -F',' '{print $9}')
         endc_lte_ul_bandwidth=$(get_bandwidth "LTE" $ul_bandwidth_num)
         dl_bandwidth_num=$(echo "$lte" | awk -F',' '{print $10}')
