@@ -551,12 +551,23 @@ get_rat()
     echo "${rat}"
 }
 
-# Return the first usable quoted IPv4 address from AT+CGPADDR output.
+# Return the first usable IPv4 address from AT+CGPADDR output.
+# Most modems report quoted IPv4: +CGPADDR: 1,"10.8.140.48",...
+# COMPAL/RXM-G1 reports unquoted: +CGPADDR: 1,10.8.140.48,...
 # FM350 reports IPv6 in dotted decimal notation after the IPv4 address.
 get_cgpaddr_ipv4()
 {
-    echo "$1" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"' \
-        | grep -v '^0\.0\.0\.0$' | head -n 1
+    local result="$1"
+    # Try quoted format first (standard 3GPP)
+    local ipv4=$(echo "$result" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"' \
+        | grep -v '^0\.0\.0\.0$' | head -n 1)
+    if [ -z "$ipv4" ]; then
+        # Fallback: unquoted format (COMPAL/RXM-G1 etc.)
+        # IPv4 is the first x.x.x.x in the response, before the dotted-decimal IPv6
+        ipv4=$(echo "$result" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
+            | grep -v '^0\.0\.0\.0$' | head -n 1)
+    fi
+    echo "$ipv4"
 }
 
 #获取连接状态
