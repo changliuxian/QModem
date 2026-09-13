@@ -35,11 +35,13 @@ define Build/InstallDev
 	$(CP) $(PKG_BUILD_DIR)/qmodem-sms/pdu.h $(1)/usr/include/qmodem-sms/
 	$(CP) $(PKG_BUILD_DIR)/libqmodem-sms.so.1.0.0 $(1)/usr/lib/
 	ln -sf libqmodem-sms.so.1.0.0 $(1)/usr/lib/libqmodem-sms.so
+	ln -sf libqmodem-sms.so.1.0.0 $(1)/usr/lib/libqmodem-sms.so.1
 endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libqmodem-sms.so.1.0.0 $(1)/usr/lib/
+	ln -sf libqmodem-sms.so.1.0.0 $(1)/usr/lib/libqmodem-sms.so
 	ln -sf libqmodem-sms.so.1.0.0 $(1)/usr/lib/libqmodem-sms.so.1
 endef
 
