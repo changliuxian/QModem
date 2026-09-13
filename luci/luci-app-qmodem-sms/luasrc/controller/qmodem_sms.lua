@@ -14,6 +14,16 @@ local function backend_call(method, arguments)
 	return result or { status = "error", error = "SMS backend call failed" }
 end
 
+local function qmodem_call(method, arguments)
+	local connection = ubus.connect()
+	if not connection then
+		return { status = "error", error = "qmodem backend unavailable" }
+	end
+	local result = connection:call("qmodem", method, arguments or {})
+	connection:close()
+	return result or { status = "error", error = "qmodem backend call failed" }
+end
+
 local function reply(value)
 	http.prepare_content("application/json")
 	http.write_json(value)
@@ -44,7 +54,9 @@ function getSMS()
 			received[#received + 1] = message
 		end
 	end
-	reply({ msg = received, mode = result.mode, error = result.error })
+	local sms_info = qmodem_call("get_sms", { config_section = modem_id })
+	local sms_capabilities = sms_info and sms_info.sms_capabilities or nil
+	reply({ msg = received, mode = result.mode, error = result.error, sms_capabilities = sms_capabilities })
 end
 
 function sendSMS()
