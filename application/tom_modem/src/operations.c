@@ -110,9 +110,24 @@ int sms_read(PROFILE_T *profile, void *transport_ptr)
                 memset(sms, 0, sizeof(SMS_T));
                 
                 pdu = strtok(NULL, "\n");
-                if (pdu == NULL || strlen(pdu) < 3) {
+                while (pdu != NULL && strlen(pdu) < 3) {
                     dbg_msg("No PDU found for line: %s", line);
                     pdu = strtok(NULL, "\n");
+                }
+                if (pdu == NULL) {
+                    dbg_msg("End of response, no PDU for line: %s", line);
+                    line = strtok(NULL, "\n");
+                    continue;
+                }
+                /* Strip trailing \r and whitespace from PDU */
+                int pdu_len = strlen(pdu);
+                while (pdu_len > 0 && (pdu[pdu_len-1] == '\r' || pdu[pdu_len-1] == ' ' || pdu[pdu_len-1] == '\t')) {
+                    pdu[--pdu_len] = '\0';
+                }
+                if (pdu_len < 3 || (pdu_len & 1) != 0) {
+                    dbg_msg("Invalid PDU length %d for line: %s", pdu_len, line);
+                    line = strtok(NULL, "\n");
+                    continue;
                 }
                 sms->sms_pdu = strdup(pdu);
                 sms->sender = (char *)malloc(PHONE_NUMBER_SIZE);
@@ -238,9 +253,24 @@ int sms_read_unread(PROFILE_T *profile, void *transport_ptr)
                 sms = (SMS_T *)malloc(sizeof(SMS_T));
                 memset(sms, 0, sizeof(SMS_T));
                 pdu = strtok(NULL, "\n");
-                if (pdu == NULL || strlen(pdu) < 3) {
+                while (pdu != NULL && strlen(pdu) < 3) {
                     dbg_msg("No PDU found for line: %s", line);
                     pdu = strtok(NULL, "\n");
+                }
+                if (pdu == NULL) {
+                    dbg_msg("End of response, no PDU for line: %s", line);
+                    line = strtok(NULL, "\n");
+                    continue;
+                }
+                /* Strip trailing \r and whitespace from PDU */
+                int pdu_len = strlen(pdu);
+                while (pdu_len > 0 && (pdu[pdu_len-1] == '\r' || pdu[pdu_len-1] == ' ' || pdu[pdu_len-1] == '\t')) {
+                    pdu[--pdu_len] = '\0';
+                }
+                if (pdu_len < 3 || (pdu_len & 1) != 0) {
+                    dbg_msg("Invalid PDU length %d for line: %s", pdu_len, line);
+                    line = strtok(NULL, "\n");
+                    continue;
                 }
                 sms->sms_pdu = strdup(pdu);
                 sms->sender = (char *)malloc(PHONE_NUMBER_SIZE);

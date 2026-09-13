@@ -34,6 +34,7 @@ try_cache() {
 
 # Helper function for SMS retrieval
 get_sms() {
+    json_init
     [ -n "$sms_at_port" ] && at_port=$sms_at_port
     cache_timeout=$1
     cache_file=$2
