@@ -81,7 +81,10 @@ int sms_decode()
 		case 2:
 			{
 				// UCS2
-				for(int i = skip_bytes;i<sms_text_length;i+=2)
+				int ucs2_skip = skip_bytes;
+				if (ucs2_skip % 2 != 0)
+					ucs2_skip++;
+				for(int i = ucs2_skip;i<sms_text_length;i+=2)
 				{
 					int ucs2_char = 0x000000FF&sms_text[i+1];
 					ucs2_char|=(0x0000FF00&(sms_text[i]<<8));

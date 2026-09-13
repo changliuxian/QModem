@@ -773,9 +773,9 @@ get_sms_capabilities() {
 
     sms_cap=${res##*+CPMS:}
     set -- $(echo "$sms_cap" | tr ',' ' ')
-    local mem1=$1 used1=$2 total1=$3
-    local mem2=$4 used2=$5 total2=$6
-    local mem3=$7 used3=$8 total3=$9
+    local mem1="${1//\"/}" used1=$2 total1=$3
+    local mem2="${4//\"/}" used2=$5 total2=$6
+    local mem3="${7//\"/}" used3=$8 total3=$9
 
     json_add_object "sms_capabilities"
     json_add_string "mem1" "$mem1"
