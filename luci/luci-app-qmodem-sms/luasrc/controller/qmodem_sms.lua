@@ -50,7 +50,12 @@ function getSMS()
 	local received = {}
 	for _, message in ipairs(messages) do
 		if not message.type or message.type == "received" then
-			message.index = message.index or message.id
+			if message.id and message.index == nil then
+				message.index = message.id
+			end
+			if message.timestamp and type(message.timestamp) == "number" then
+				message.timestamp = os.date("%Y/%m/%d %H:%M:%S", message.timestamp)
+			end
 			received[#received + 1] = message
 		end
 	end
@@ -73,7 +78,7 @@ function delSMS()
 	local changed = 0
 	for id in (http.formvalue("index") or ""):gmatch("%d+") do
 		local result = backend_call("delete", { modem_id = modem_id, id = tonumber(id), index = tonumber(id) })
-		if result.status == "success" then changed = changed + 1 end
+		if result and result.status == "success" then changed = changed + 1 end
 	end
 	reply({ success = true, deleted = changed })
 end
